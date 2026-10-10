@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.app/
+*.dmg
+*.dylib
+*.log
+*.mp4
+build/
+backups/
+verification*.json
+stream-verification*.json
