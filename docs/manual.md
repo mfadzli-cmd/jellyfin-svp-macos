@@ -1,4 +1,6 @@
-# Manual repair and recovery
+# Advanced repair and recovery
+
+For prerequisites, installation, server connection, playback checks, and everyday use, follow the [README](../README.md). This document is optional reference for custom configurations, contributors, and recovery.
 
 ## What changes
 

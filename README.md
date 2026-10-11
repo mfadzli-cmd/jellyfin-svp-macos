@@ -1,110 +1,192 @@
 # Jellyfin + SVP for macOS
 
-Watch from Jellyfin Media Player with SVP motion interpolation, using the normal Jellyfin app interface. Opening Jellyfin starts SVP automatically—no MPV Shim casting or Automator workflow required.
+Watch your Jellyfin library with SVP smooth playback directly inside **Jellyfin Media Player**. After setup, open Jellyfin, choose a video, and press Play. SVP starts automatically in the background.
 
-**Experimental community integration.** The underlying repair has been tested on one Apple Silicon Mac with Jellyfin Media Player **1.12.0**, Homebrew mpv **0.41.0**, VapourSynth **R80**, and SVP **4.7.2.325**. The installer is a new packaging of that repair, not a broadly tested release. Intel Macs, Jellyfin Desktop 2.x, and CEF-based clients are not supported by this version.
+**You do not need Codex, ChatGPT, an AI subscription, or a service operated by this project's author.** You run the installer from this repository once on your own Mac. It builds a small local launcher using your installed Jellyfin, SVP, and Homebrew libraries. Terminal is needed for setup and optional diagnostics, not everyday watching. No MPV Shim casting or Automator workflow is required.
 
-This project is not affiliated with Jellyfin or SVP. It distributes source code and instructions only. Install those applications separately and use SVP under its own license/trial terms.
+**Experimental: Jellyfin Media Player 1.12.0 on Apple Silicon only.** The underlying repair worked on one Mac; the packaged installer has not yet been validated end-to-end on a fresh Mac. Intel Macs, Jellyfin Desktop 2.x, and CEF-based clients are not supported by this version.
 
-## Why this exists
+## Start here
 
-Jellyfin already uses mpv, and SVP connects to mpv through a local socket. However, a player can advertise VapourSynth support while its bundled Python runtime is incomplete. On the tested Mac, enabling SVP caused a fatal `No module named 'encodings'` error. SVP also crashed during the failed playback tests.
+1. [Install the prerequisites](#1-install-the-prerequisites).
+2. [Download this project](#2-download-this-project).
+3. [Preview and install](#3-preview-and-install).
+4. [Connect to your Jellyfin server](#4-connect-to-your-jellyfin-server).
+5. [Choose your SVP settings](#5-choose-your-svp-settings).
+6. [Verify smooth playback](#6-verify-smooth-playback).
 
-The working repair:
+Normal setup is covered entirely below. The [advanced manual](docs/manual.md) is optional and covers internal details, custom configurations, and recovery when automatic restore refuses.
 
-1. Connect Jellyfin's embedded player to Homebrew's `libmpv`.
-2. Point it to Homebrew's working VapourSynth scripting library and Python package directory.
-3. Enable the local control socket and copy-back hardware decoding.
-4. Start SVP whenever Jellyfin opens.
+## 1. Install the prerequisites
 
-In a brief real 1080p HEVC stream test, SVP converted **23.976 to approximately 59.94 fps**, using VideoToolbox copy-back decoding, with no dropped frames during the final measurement interval. That is a short test on one machine, not a promise for every video or Mac.
+### Your Mac and Jellyfin server
 
-## Before installing
+- **An Apple Silicon Mac**, using a native Terminal session and a macOS release supported by your installed Homebrew and SVP versions. This project is not tested across every macOS release.
+- **A working Jellyfin server**, its server address, and your Jellyfin account. The server can be on another computer or NAS; it does not need to run on this Mac. This project configures the Mac player, not the server. If you have no server yet, follow [Jellyfin's server quick start](https://jellyfin.org/docs/general/quick-start/).
 
-You need:
+### Jellyfin Media Player and SVP
 
-- A native Apple Silicon terminal session, with Homebrew at `/opt/homebrew`.
-- An **unmodified Apple Silicon Jellyfin Media Player 1.12.0** app at `/Applications/Jellyfin Media Player.app`, from [Jellyfin's official release](https://github.com/jellyfin/jellyfin-media-player/releases/tag/v1.12.0). Open it normally first.
-- [SVP 4 Mac](https://www.svp-team.com/docs/mac/) installed at `/Applications/SVP 4 Mac.app`. Open it and complete its normal setup first, including Rosetta if macOS requests it.
-- Homebrew's **formula** version of mpv, not the mpv cask. Follow [SVP's macOS installation guide](https://www.svp-team.com/docs/mac/).
-- Python 3 and Apple's command line tools to build the small native launcher.
+- Download the **Apple Silicon Jellyfin Media Player 1.12.0** app from [Jellyfin's official release](https://github.com/jellyfin/jellyfin-media-player/releases/tag/v1.12.0). Install it at `/Applications/Jellyfin Media Player.app`. Open it once normally. Start with an **unmodified** app; the installer refuses already-patched apps and other versions.
+- Install [SVP 4 Mac](https://www.svp-team.com/docs/mac/) at `/Applications/SVP 4 Mac.app`. Open it and complete its normal setup, including Rosetta if macOS requests it. SVP's own license/trial terms apply; this project does not supply a license or remove its evaluation watermark.
 
-If needed, run these commands yourself:
+### Build tools and playback libraries
+
+Install Apple's Command Line Tools if you do not already have them or Xcode:
 
 ```sh
 xcode-select --install
+```
+
+Finish that installation before continuing. If macOS reports the tools are already installed, continue.
+
+Install [Homebrew from its official website](https://brew.sh/) if needed, and follow its printed shell setup instructions so `brew` works in Terminal. On Apple Silicon, this project expects it at `/opt/homebrew`.
+
+Then install the required packages:
+
+```sh
 brew install mpv vapoursynth python
 ```
 
-Homebrew packages change over time. The installer requires the R80-style VapourSynth package layout and checks for it; it does not pin or download historical packages. A future version may require updates to this project.
+- **mpv** provides the playback library Jellyfin will use. Use the Homebrew formula above, not `brew install --cask mpv`.
+- **VapourSynth** lets SVP's frame interpolation run inside the player.
+- **Python 3** runs this project's setup/check scripts and is also used by the VapourSynth runtime. No `pip install` step is needed for our scripts.
+- **Apple's compiler** builds the small launcher. You do not need to write or edit code.
 
-Quit Jellyfin before installation. Keep other mpv-based players closed during verification because the SVP socket is shared.
+The working setup used mpv **0.41.0**, VapourSynth **R80**, and SVP **4.7.2.325**. Homebrew installs its available versions, not a frozen copy of that setup. The installer checks for the R80-style VapourSynth layout; future package versions may require changes. See [SVP's macOS guide](https://www.svp-team.com/docs/mac/) for upstream dependency setup.
 
-## Install
+## 2. Download this project
 
-Download this repository using **Code → Download ZIP**, unzip it, and open Terminal in that folder. Read the source before applying a local app modification.
+Choose either method. A GitHub account is not required to download the public source.
+
+**Download ZIP:** On this repository's page, choose **Code → Download ZIP**, then unzip it. Open Terminal, type `cd` followed by a space, drag the extracted folder from Finder into Terminal, and press Return. This avoids guessing where your Downloads folder or extracted directory is located.
+
+**Or clone with Git:**
+
+```sh
+git clone https://github.com/mfadzli-cmd/jellyfin-svp-macos.git
+cd jellyfin-svp-macos
+```
+
+Run all remaining commands from that project folder. Review the source before applying the app modification.
+
+## 3. Preview and install
+
+Quit Jellyfin first. Close other mpv-based players such as mpv or IINA while setting up and testing; they may compete for the same SVP control socket.
+
+Check the prerequisites:
 
 ```sh
 python3 setup.py doctor
+```
+
+Look for Jellyfin, SVP, and Homebrew libmpv being present, and **one** VapourSynth runtime match. `SVP socket exists: False` is normal before the configured player is running. `doctor` reports presence/layout only; it does not prove that installation or interpolation works.
+
+Preview the changes:
+
+```sh
 python3 setup.py install
 ```
 
-The second command previews the changes without writing files. To apply them:
+This checks the supported app and prints what would change, without writing files. If it reports an error, fix that issue before proceeding. To apply the repair:
 
 ```sh
 python3 setup.py install --yes
 ```
 
-Then open **Jellyfin Media Player** normally and play a video.
+The installer builds and verifies a staged app, backs up the original app and configuration, then installs the modified copy. **Save the backup path printed at the end.** Backups live under `~/Library/Application Support/jellyfin-svp-macos/backups/`.
 
-The installer:
+It adds the SVP socket and copy-back decoding options to Jellyfin's `mpv.conf` while preserving other simple settings. If your file contains profiles or includes, it stops for [manual configuration review](docs/manual.md). You do not need to edit configuration files for the normal setup.
 
-- Checks the app identity, version, architecture, signature integrity, runtime layout, and compiler.
-- Builds and verifies a staged copy before replacing the installed application.
-- Preserves the original app and `mpv.conf` in a dated private local backup directory.
-- Merges the socket/copy-back options while preserving other simple mpv settings. Configurations with profiles or includes are declined for manual review.
-- Signs the modified app locally with the upstream entitlements. This replaces the vendor signature; it does not create Apple notarization or independently establish download provenance.
-- Does **not** change Gatekeeper globally, remove quarantine, download packages, ask for passwords, copy Jellyfin credentials, or change your SVP profiles.
+The modified application is signed locally with the upstream entitlements. This replaces its vendor signature; it does not create Apple notarization. The installer does not disable Gatekeeper or remove quarantine. Obtain the original applications from their official sources and follow macOS's normal approval flow if needed. **Do not run this installer with `sudo`.**
 
-Backups are stored under `~/Library/Application Support/jellyfin-svp-macos/backups/`. Save the exact backup path printed by installation. Do not use `sudo` to run this script.
+## 4. Connect to your Jellyfin server
 
-## Choose the smoothness setting
+1. Open **Jellyfin Media Player** from Applications. The new launcher also opens SVP in the background.
+2. If your existing account and library appear, continue to the next section. The installer does not intentionally reset them.
+3. Otherwise, enter your server's address in **Connect to Server**, then choose **Connect**. Use the address you normally use for Jellyfin, for example `http://YOUR-SERVER-IP:8096` on your local network or your configured HTTPS address such as `https://jellyfin.example.com`. Replace the example with your actual address, including any required port or subpath.
+4. Sign in with your Jellyfin account. If you do not know the address or credentials, ask the person who manages your server.
+5. Browse your library and play a video **in this Jellyfin app**. You do not need to select a cast device or send the video to MPV Shim.
 
-In SVP's Video profiles panel, start with a target of **60 fps** and choose Animation if appropriate for your content. A 23.976 fps source may produce 59.94 fps. Higher targets such as 120/144 fps can require substantially more processing. Check dropped frames before increasing the target. The installer leaves your existing settings alone.
+If connection fails, first check that the same server address opens in your browser and that your Mac has access to the server's network or required VPN. Server connectivity and sign-in are separate from SVP setup.
 
-The SVP evaluation watermark, if present, belongs to SVP's licensing/trial behavior. This project does not remove it.
+SVP processes playback on this Mac. The installer does not configure your server or need your Jellyfin credentials. Watching through a separate web browser does not use this patched player.
 
-## Verify
+## 5. Choose your SVP settings
 
-While a low-frame-rate video is playing in Jellyfin:
+Open SVP's control panel and its **Video profiles** panel. Enable frame rate conversion, start with a target of **60 fps**, and choose **Animation** if appropriate for your content. Keep SVP running while watching.
+
+A 23.976 fps source may produce approximately 59.94 fps. Higher targets such as 120/144 fps can require more processing; check dropped frames before increasing them. The installer leaves your existing SVP profiles unchanged.
+
+## 6. Verify smooth playback
+
+Play a low-frame-rate video, such as a 24 fps episode, in Jellyfin. Leave it playing, allow startup to settle, and run this from the project folder:
 
 ```sh
 python3 verify.py
 ```
 
-Look for `svp_filter_enabled: true`, an output frame rate above the source frame rate, and a dropped-frame count that is not continually increasing. The check samples twice, five seconds apart. It never starts, pauses, seeks, or changes playback, and it omits media URLs, filenames, and script paths from its output.
+It takes two measurements five seconds apart. A successful check ends with:
 
-`doctor` only checks presence/layout. A successful install or a visible SVP icon does not by itself prove interpolation is active.
+```text
+SVP interpolation observed.
+```
 
-## Restore the original app
+In the output, look for:
 
-Quit Jellyfin. Use the backup path printed at installation:
+- **`svp_filter_enabled: true`** — SVP's filter is active.
+- **`estimated-vf-fps` above `container-fps`** — the filtered video has more frames than the source, for example roughly 59.94 versus 23.976.
+- **`frame-drop-count` not continually increasing** between measurements. A few startup drops alone do not tell you how steady playback is afterward.
+- **`hwdec-current: videotoolbox-copy`** when supported hardware decoding is in use. Some formats may use software decoding; this field alone does not determine whether SVP works.
+
+The check reads playback state; it never starts, pauses, seeks, or changes your video. It omits media URLs, filenames, and filter script paths. It checks whichever player owns `/tmp/mpvsocket`, so close other mpv-based players first. A paused video will not pass, and a visible SVP icon alone does not prove interpolation is active.
+
+## Everyday use
+
+Open **Jellyfin Media Player → choose a video → Play**. SVP starts automatically. You do not need to rerun the installer or keep Terminal, Python setup scripts, or any AI app open. The compiled launcher and installed Homebrew libraries remain necessary for playback.
+
+## Common problems
+
+- **`brew: command not found`:** Complete Homebrew's shell setup instructions, then reopen Terminal.
+- **`can't open file 'setup.py'`:** Terminal is in the wrong folder. Use the `cd` instructions in step 2.
+- **Already modified / unsupported version:** Do not patch repeatedly. If your patched app works, keep using it. For a fresh install, use an unmodified supported 1.12.0 app. Desktop 2.x is a different, unsupported target.
+- **No unique VapourSynth runtime / library failed to load:** Check the Homebrew packages and run `doctor`. A changed library layout may need a project update; do not substitute a random Python library.
+- **`No module named encodings`:** This was the original bundled-Python failure. Confirm you are opening the patched app and that its entry point in `doctor` is `JellyfinSVPLauncher`. See the advanced manual if it persists.
+- **Cannot verify / SVP filter is inactive:** Play a low-frame-rate video in the patched app, unpause it, keep SVP running, and close other mpv/IINA sessions. Reopen Jellyfin and retry.
+- **Stuttering / increasing dropped frames:** Start at 60 fps, lower SVP quality if needed, and check the decoding status. A higher reported output rate is not proof every frame is displayed smoothly.
+- **Permission denied / Apple verification prompt:** Use the official app downloads and normal macOS approval/file-management flows. Do not disable Gatekeeper globally or run the installer with sudo.
+
+For custom profiles, detailed library diagnostics, and interrupted installs, see the [advanced manual](docs/manual.md). For unresolved issues, follow the [reporting guide](CONTRIBUTING.md); do not post raw logs or credentials.
+
+## Undo the installation
+
+Quit Jellyfin. Replace the example below with the exact backup directory printed when you installed:
 
 ```sh
 python3 setup.py restore --backup "/path/printed/by/the/installer"
+```
+
+That previews the restore. Apply it with:
+
+```sh
 python3 setup.py restore --backup "/path/printed/by/the/installer" --yes
 ```
 
-The first command previews. Restore refuses to overwrite an app update or a modified `mpv.conf`. In that case, use the [manual recovery guide](docs/manual.md) to preserve your later changes. Backups are retained after restore; Homebrew and SVP are left installed.
+Restore returns the original app and `mpv.conf`, retaining the backup and leaving SVP/Homebrew installed. It refuses to overwrite an app update or a configuration edited since installation. If that happens, use [manual recovery](docs/manual.md#recovery-if-automated-restore-refuses) to preserve your later changes.
 
-## Updates and another Mac
+## Updates and moving to another Mac
 
-A Jellyfin update/reinstallation replaces this patch. Do not rerun it against a different Jellyfin version. Homebrew upgrades can also alter runtime behavior: rerun `doctor` and the playback check afterward.
+A Jellyfin update or reinstall replaces this patch. Do not rerun it against a different Jellyfin version. Homebrew upgrades can also change runtime behavior; repeat the diagnostic and playback checks afterward.
 
-On another supported Mac, install the prerequisites and run the installer afresh. **Do not copy the modified `.app` between Macs**: it depends on that machine's Homebrew installation. Sign into your Jellyfin server normally. Server addresses, accounts, libraries, watch history, and tokens are not stored in this repository.
+On another supported Mac, follow this README from step 1 and sign into your server normally. **Do not copy the patched `.app` between Macs**: it depends on each machine's Homebrew installation. This repository contains no server settings or account credentials to migrate.
 
-See [manual repair and troubleshooting](docs/manual.md) and [how to contribute](CONTRIBUTING.md).
+## How it works and what has been tested
+
+Jellyfin already embeds mpv. The repair links it to Homebrew's working playback library, gives VapourSynth the correct runtime paths, and enables SVP's local connection with copy-back decoding. A small native launcher supplies those paths and starts SVP whenever Jellyfin opens. No ongoing service from this repository's author is involved.
+
+The underlying manual repair played a real 1080p HEVC stream at **23.976 → approximately 59.94 fps**, using VideoToolbox copy-back decoding, with zero dropped frames during the final short measurement interval. The packaged installer passed nine automated tests for configuration handling, preview, backup/restore, and error rollback; a staged real app also compiled and passed signature verification.
+
+These are limited checks, not a guarantee for all videos or Macs. End-to-end installation on a fresh Mac, long-duration stability, and other version combinations still need validation. [Technical details and upstream references](docs/manual.md) are available for contributors.
 
 ## License
 
-The original installer, launcher, tests, and documentation in this repository are MIT licensed. Jellyfin, mpv, VapourSynth, SVP, and their dependencies retain their own licenses. This repository does not distribute their binaries.
+This is an independent community project, not affiliated with Jellyfin or SVP. Its original installer, launcher, tests, and documentation are MIT licensed. Jellyfin, mpv, VapourSynth, SVP, and their dependencies retain their own licenses. Their applications and binaries are not distributed here.
