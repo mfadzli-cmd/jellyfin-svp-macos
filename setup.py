@@ -152,7 +152,7 @@ def install(app, yes):
             raise
     state['status'] = 'installed'
     state_path.write_text(json.dumps(state, indent=2))
-    print(f'Installed. Open Jellyfin normally. Backup: {backup}')
+    print(f'Installed. Start SVP first (or use Open at Login), then open Jellyfin. Backup: {backup}')
     print(f'To restore: python3 setup.py restore --backup "{backup}" --yes')
 
 

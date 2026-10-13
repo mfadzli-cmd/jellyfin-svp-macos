@@ -12,7 +12,7 @@ A compiled C launcher is added alongside it, and `CFBundleExecutable` points to 
 /opt/homebrew/opt/vapoursynth/libexec/lib/python*/site-packages/vapoursynth/libvsscript.dylib
 ```
 
-It sets `VSSCRIPT_PATH` to that file and `PYTHONPATH` to its `site-packages` directory, clears inherited `PYTHONHOME`, opens SVP, and executes Jellyfin. Environment changes apply to that app process and its children, not your global shell configuration.
+It sets `VSSCRIPT_PATH` to that file and `PYTHONPATH` to its `site-packages` directory, clears inherited `PYTHONHOME`, and executes Jellyfin. SVP must already be running, started manually or by macOS login items; the launcher does not open SVP. Environment changes apply to that app process and its children, not your global shell configuration.
 
 Changing Info.plist invalidates the original signature, so the build locally signs both the original entry point and the bundle, retaining the upstream entitlements. `codesign --verify --deep` checks integrity, not notarization or developer reputation. macOS can still require its normal local-app approval. The project does not automate bypassing security prompts.
 
@@ -58,9 +58,20 @@ If installation is interrupted, inspect `state.json` and any `.jellyfin-svp-*` s
 - **Permission denied:** Do not run the installer with sudo. Use a writable app location via `--app`, or manage the destination through Finder. macOS may prompt about moving an app outside Applications when launched.
 - **Jellyfin/SVP updates:** This is a workaround tied to tested versions, not an upstream integration contract. Re-test rather than assuming every newer build works.
 
+## Optional episode grid compatibility
+
+`customize.py episode-grid` appends `src/episode-grid-compat.js` to the native web extension at `Contents/Resources/web-client/extension/nativeshell.js`. The original extension is retained. A MutationObserver identifies episode lists and applies the grid rules that the older Chromium engine cannot match through ElegantFin's `:has()` selector. A padding-based 16:9 fallback replaces unsupported aspect-ratio sizing, with the play button positioned at the thumbnail centre. The patch skips browsers that support `:has()`.
+
+The app uses QtWebEngine with Chromium 87; swapping in a Chromium executable alone would not upgrade that framework. This targeted workaround avoids changing the playback engine. Theme or web-client changes may require a revised patch.
+
+Both customization actions stage and sign a copy before replacing the installed app, keep a full app backup, and roll back if the final rename fails. `update-launcher` rebuilds only the existing integration launcher from current source. Neither action edits `mpv.conf`, SVP settings, or login items. App-only backups use the included `RECOVERY.txt`, rather than the main installer's configuration-aware restore command.
+
 ## Sources
 
 - [SVP macOS installation and mpv configuration](https://www.svp-team.com/docs/mac/)
 - [Jellyfin Media Player 1.12.0 release](https://github.com/jellyfin/jellyfin-media-player/releases/tag/v1.12.0)
 - [VapourSynth installation and VSSCRIPT_PATH](https://www.vapoursynth.com/doc/installation.html)
 - [mpv source](https://github.com/mpv-player/mpv)
+
+- [ElegantFin theme](https://github.com/lscambo13/ElegantFin)
+- [Chromium 105 adds :has()](https://developer.chrome.com/blog/new-in-chrome-105)

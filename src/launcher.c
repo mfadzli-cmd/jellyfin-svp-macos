@@ -7,10 +7,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <glob.h>
-#include <spawn.h>
-#include <sys/wait.h>
-#include <errno.h>
-extern char **environ;
 
 static int fail(const char *message) {
     fprintf(stderr, "Jellyfin + SVP: %s\n", message);
@@ -39,16 +35,7 @@ int main(int argc, char **argv) {
     if (setenv("PYTHONPATH", modules, 1) != 0) return fail("Cannot set PYTHONPATH.");
     globfree(&matches);
 
-    pid_t pid;
-    char *open_args[] = {"/usr/bin/open", "-g", "-a", "/Applications/SVP 4 Mac.app", NULL};
-    int status;
-    if (posix_spawn(&pid, open_args[0], NULL, NULL, open_args, environ) != 0)
-        return fail("Cannot start SVP.");
-    while (waitpid(pid, &status, 0) < 0) {
-        if (errno != EINTR) return fail("Cannot wait for SVP launcher.");
-    }
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-        return fail("Install and open SVP 4 Mac before launching Jellyfin.");
+    // SVP is started by the user or macOS login items, independently of Jellyfin.
 
     char launcher[PATH_MAX], executable[PATH_MAX];
     uint32_t size = sizeof(launcher);

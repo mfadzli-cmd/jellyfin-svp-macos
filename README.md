@@ -1,6 +1,6 @@
 # Jellyfin + SVP for macOS
 
-Watch your Jellyfin library with SVP smooth playback directly inside **Jellyfin Media Player**. After setup, open Jellyfin, choose a video, and press Play. SVP starts automatically in the background.
+Watch your Jellyfin library with SVP smooth playback directly inside **Jellyfin Media Player**. After setup, start SVP (manually or at login), then open Jellyfin, choose a video, and press Play. Jellyfin does not launch SVP or bring its control panel forward.
 
 **You do not need Codex, ChatGPT, an AI subscription, or a service operated by this project's author.** You run the installer from this repository once on your own Mac. It builds a small local launcher using your installed Jellyfin, SVP, and Homebrew libraries. Terminal is needed for setup and optional diagnostics, not everyday watching. No MPV Shim casting or Automator workflow is required.
 
@@ -101,7 +101,7 @@ The modified application is signed locally with the upstream entitlements. This 
 
 ## 4. Connect to your Jellyfin server
 
-1. Open **Jellyfin Media Player** from Applications. The new launcher also opens SVP in the background.
+1. Ensure **SVP 4 Mac** is running, then open **Jellyfin Media Player** from Applications. See [SVP startup](#svp-startup) below for the optional login setting.
 2. If your existing account and library appear, continue to the next section. The installer does not intentionally reset them.
 3. Otherwise, enter your server's address in **Connect to Server**, then choose **Connect**. Use the address you normally use for Jellyfin, for example `http://YOUR-SERVER-IP:8096` on your local network or your configured HTTPS address such as `https://jellyfin.example.com`. Replace the example with your actual address, including any required port or subpath.
 4. Sign in with your Jellyfin account. If you do not know the address or credentials, ask the person who manages your server.
@@ -142,7 +142,46 @@ The check reads playback state; it never starts, pauses, seeks, or changes your 
 
 ## Everyday use
 
-Open **Jellyfin Media Player → choose a video → Play**. SVP starts automatically. You do not need to rerun the installer or keep Terminal, Python setup scripts, or any AI app open. The compiled launcher and installed Homebrew libraries remain necessary for playback.
+Ensure **SVP is running → open Jellyfin Media Player → choose a video → Play**. You do not need to rerun the installer or keep Terminal, Python setup scripts, or any AI app open. The compiled launcher and installed Homebrew libraries remain necessary for playback.
+
+### SVP startup
+
+Choose whichever suits you:
+
+- **Convenient:** In **System Settings → General → Login Items & Extensions → Open at Login**, click **+** and add **SVP 4 Mac** from Applications. On some macOS versions the page is named **Login Items**. See [Apple's login items guide](https://support.apple.com/guide/mac-help/mh15189/mac). This project does not change login items automatically.
+- **Manual:** Open **SVP 4 Mac** before starting Jellyfin and leave it running while watching.
+
+The SVP control panel does not need to stay visible; SVP Manager must remain running. Quitting SVP stops its ability to apply interpolation. If you forgot to start it, open SVP and restart the video, then use `python3 verify.py` to check. Jellyfin can open without SVP, but smooth interpolation requires it.
+
+### Updating an older installation's startup behaviour
+
+New installations already use the behaviour above. If an earlier version of this project's launcher still opens SVP whenever Jellyfin starts, download the latest project (or run `git pull` in your clone), quit Jellyfin, and run:
+
+```sh
+python3 customize.py update-launcher
+python3 customize.py update-launcher --yes
+```
+
+The first command previews; the second rebuilds only the existing SVP launcher, locally signs the app, and saves a full app backup. It preserves the grid patch, playback configuration, and login items. It requires the original build tools and an existing `JellyfinSVPLauncher` installation. Your already-working manual-start launcher does not need this update.
+
+## Optional: fix oversized episode thumbnails / restore the grid
+
+If **Jellyfin Media Player 1.12.0** shows huge episode thumbnails in a single column while your browser shows a grid with the **ElegantFin theme**, you can apply the optional compatibility patch. It restores responsive episode columns, 16:9 thumbnails, and centred play buttons. Skip this if your layout already works. It is not a general fix for every theme or Jellyfin client.
+
+Quit Jellyfin, then preview and apply:
+
+```sh
+python3 customize.py episode-grid
+python3 customize.py episode-grid --yes
+```
+
+Reopen Jellyfin and visit a season's episode page. Check that the cards form a grid and each play button is centred on its image. The number of columns depends on window size and theme settings. This fix is separate from SVP and works on either an original supported app or one with the SVP integration installed.
+
+The script uses Python's standard library and macOS signing tools; no Node.js or extra packages are needed. It patches only the local app, keeps the existing launcher and playback configuration, and does not alter server CSS or other clients. It refuses unsupported versions and an already-present grid patch. The patch was visually verified on one Mac with ElegantFin; other themes are not validated.
+
+Both customization commands print a full app backup path. To undo, quit Jellyfin, move the current app somewhere safe, and copy the backed-up app to its original location using Finder. **Do not pass these customization backups to `setup.py restore`**; they contain an app backup only. Restoring a full app backup also reverts any later app customizations, so keep the current copy. An app update can remove these changes.
+
+For contributors, `--output "/path/to/New.app"` builds and signs a separate copy without changing the installed app. See [technical details](docs/manual.md#optional-episode-grid-compatibility).
 
 ## Common problems
 
@@ -181,9 +220,9 @@ On another supported Mac, follow this README from step 1 and sign into your serv
 
 ## How it works and what has been tested
 
-Jellyfin already embeds mpv. The repair links it to Homebrew's working playback library, gives VapourSynth the correct runtime paths, and enables SVP's local connection with copy-back decoding. A small native launcher supplies those paths and starts SVP whenever Jellyfin opens. No ongoing service from this repository's author is involved.
+Jellyfin already embeds mpv. The repair links it to Homebrew's working playback library, gives VapourSynth the correct runtime paths, and enables SVP's local connection with copy-back decoding. A small native launcher supplies those paths. SVP starts independently, either manually or through macOS login items. No ongoing service from this repository's author is involved.
 
-The underlying manual repair played a real 1080p HEVC stream at **23.976 → approximately 59.94 fps**, using VideoToolbox copy-back decoding, with zero dropped frames during the final short measurement interval. The packaged installer passed nine automated tests for configuration handling, preview, backup/restore, and error rollback; a staged real app also compiled and passed signature verification.
+The underlying manual repair played a real 1080p HEVC stream at **23.976 → approximately 59.94 fps**, using VideoToolbox copy-back decoding, with zero dropped frames during the final short measurement interval. The current suite passes 14 automated tests covering configuration handling, preview, backup/restore, optional grid changes, and error rollback. Both customization commands also built separate real app copies and passed signature verification; the updated launcher compiled with warnings treated as errors. Transaction tests use temporary fixtures and mocked macOS commands.
 
 These are limited checks, not a guarantee for all videos or Macs. End-to-end installation on a fresh Mac, long-duration stability, and other version combinations still need validation. [Technical details and upstream references](docs/manual.md) are available for contributors.
 
